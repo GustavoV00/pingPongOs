@@ -38,16 +38,58 @@ void queue_print(char *name, queue_t *queue, void (*print_elem)(void *)) {
 }
 
 int queue_remove (queue_t **queue, queue_t *elem){
-    queue_t **auxQueu, **auxRemove;
+    queue_t **auxQueu;
     auxQueu = queue;
 
-    while(*auxQueu != elem){
-        *auxQueu = (*auxQueu)->next;
-    } 
+    if(*queue == NULL || queue == NULL) {
+        printf("SOMETHING GOES WRONG!\n");
+        elem = NULL;
+    }
 
+    if(*auxQueu == elem) {
+        switch(queue_size(*queue)){
+            case 1:
+                printf("ENTREI NO CASE 1\n");
+                elem->prev = NULL;
+                elem->next = NULL;
+                *queue = NULL;
+                break;
+            
+            default:
+                printf("PRIMERO IF\n");
+                (*queue)->next->prev = (*queue)->prev;
+                (*queue)->prev->next = (*queue)->next;
+                (*queue) = (*queue)->next;
 
+                elem->prev = NULL;
+                elem->next = NULL;
+                break;
 
-    return 0;
+        }
+
+        return 0;
+    } else if((*auxQueu)->prev == elem) {
+        printf("SEGUNDO IF\n");
+        (*auxQueu)->prev = (*auxQueu)->prev->prev;
+        (*auxQueu)->prev->prev->next = *queue;
+
+        return 0;
+    } else{
+        printf("TERCEIRO IF\n");
+        *auxQueu = elem;
+//        while(*auxQueu != elem){
+//            printf("ENTREI AQUI CARAI\n");
+//            printf("%p e %p\n", auxQueu, elem);
+//            *auxQueu = (*auxQueu)->next;
+//        } 
+
+        (*auxQueu)->prev->next = (*auxQueu)->next;
+        (*auxQueu)->next->prev = (*auxQueu)->prev;
+
+        return 0;
+    }
+
+    return -1;
 }
 
 int queue_size (queue_t *queue) {
@@ -63,8 +105,9 @@ int queue_size (queue_t *queue) {
             i += 1;
         } 
 
-//        printf("SAI DO CONTADOR DA FILA: %d\n", i);
+        printf("SAI DO CONTADOR DA FILA: %d\n", i);
         return i;
     }
+
     return 0;
 }

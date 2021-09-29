@@ -15,7 +15,7 @@
 #include <assert.h>
 #include "./../includes/queue.h"
 
-#define N 100
+#define N 10
 
 // A estrutura "filaint_t" será usada com as funções de queue.c usando um
 // casting para o tipo "queue_t". Isso funciona bem, se os campos iniciais
@@ -124,7 +124,7 @@ int main (int argc, char **argv, char **envp)
    for (i=0; i<N; i++)
    {
       assert (queue_size ((queue_t*) fila0) == i) ;
-      queue_append ((queue_t **) &fila0, (queue_t *) &item[i]) ;
+      queue_append ((queue_t **) &fila0, (queue_t*) &item[i]) ;
       assert (fila_correta (fila0)) ;
    }
 
@@ -340,4 +340,3 @@ int main (int argc, char **argv, char **envp)
 
    exit(0) ;
 }
-
