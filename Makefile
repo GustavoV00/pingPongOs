@@ -25,4 +25,4 @@ queue.o: $(SRC)/$(QUEUE) $(INCLUDES)/$(QUEUELB)
 	$(GCC) -c $(SRC)/$(QUEUE) $(CFLAGS) -o $(SRC)/queue.o
 
 clean:
-	rm -rf $(SRC)/*.o
+	rm -rf $(SRC)/*.o && rm queue

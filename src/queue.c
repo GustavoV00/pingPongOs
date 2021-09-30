@@ -38,13 +38,9 @@ void queue_print(char *name, queue_t *queue, void (*print_elem)(void *)) {
 }
 
 int queue_remove (queue_t **queue, queue_t *elem){
-    queue_t **auxQueu;
-    auxQueu = queue;
+    queue_t **auxQueu = queue, *first = *queue;
 
-    if(*queue == NULL || queue == NULL) {
-        printf("SOMETHING GOES WRONG!\n");
-        elem = NULL;
-    }
+
 
     if(*auxQueu == elem) {
         switch(queue_size(*queue)){
@@ -68,28 +64,46 @@ int queue_remove (queue_t **queue, queue_t *elem){
         }
 
         return 0;
-    } else if((*auxQueu)->prev == elem) {
+    }
+    // Ultimo elemento
+    else if((*auxQueu)->prev == elem) {
         printf("SEGUNDO IF\n");
-        (*auxQueu)->prev = (*auxQueu)->prev->prev;
-        (*auxQueu)->prev->prev->next = *queue;
-
-        return 0;
-    } else{
-        printf("TERCEIRO IF\n");
-        *auxQueu = elem;
-//        while(*auxQueu != elem){
-//            printf("ENTREI AQUI CARAI\n");
-//            printf("%p e %p\n", auxQueu, elem);
-//            *auxQueu = (*auxQueu)->next;
-//        } 
+        (*auxQueu) = (*auxQueu)->prev;
 
         (*auxQueu)->prev->next = (*auxQueu)->next;
         (*auxQueu)->next->prev = (*auxQueu)->prev;
+        *queue = first;
+        elem->next = NULL;
+        elem->prev = NULL;
+
+        return 0;
+    
+    } 
+    // Elemento do meio
+    else{
+        printf("TERCEIRO IF\n");
+
+        while(*auxQueu != elem){
+            printf("ENTREI DENTRO DO WHILEW\n");
+            *auxQueu = (*auxQueu)->next;
+//            printf("%p e %p\n", *auxQueu, elem);
+            if(*auxQueu == first){
+                printf("erro: Elemento não existe na fila.\n");
+                return -1;
+            }
+        } 
+
+        printf("ENTREI FORA DO WHILE\n");
+        queue = auxQueu;
+        (*auxQueu)->next->prev = elem->prev;
+        (*auxQueu)->prev->next = elem->next;
+        *queue = first;
+        elem->next = NULL;
+        elem->prev = NULL;
 
         return 0;
     }
 
-    return -1;
 }
 
 int queue_size (queue_t *queue) {
