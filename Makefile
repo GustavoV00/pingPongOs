@@ -2,7 +2,7 @@
 GCC = gcc
 
 # Dirs
-SRC=./src
+SRC=./src/fila
 INCLUDES=./includes
 
 # Flags

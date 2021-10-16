@@ -30,6 +30,7 @@ void BodyPing (void * arg)
    for (i=0; i<4; i++)
    {
       printf ("%s: %d\n", (char *) arg, i) ;
+      // salva o contexto atual em a e restaura o contexto salvo anteriormente em b.
       swapcontext (&ContextPing, &ContextPong) ;
    }
    printf ("%s: fim\n", (char *) arg) ;
@@ -48,6 +49,7 @@ void BodyPong (void * arg)
    for (i=0; i<4; i++)
    {
       printf ("%s: %d\n", (char *) arg, i) ;
+      // salva o contexto atual em a e restaura o contexto salvo anteriormente em b.  
       swapcontext (&ContextPong, &ContextPing) ;
    }
    printf ("%s: fim\n", (char *) arg) ;
@@ -57,12 +59,15 @@ void BodyPong (void * arg)
 
 /*****************************************************/
 
+// Caso eu venha a esquecer como uqe o código funciona
+// Comentar as linhas que contém o swapcontext
 int main (int argc, char *argv[])
 {
    char *stack ;
 
    printf ("main: inicio\n") ;
 
+   // salva o contexto atual na variável a.
    getcontext (&ContextPing) ;
 
    stack = malloc (STACKSIZE) ;
@@ -79,6 +84,8 @@ int main (int argc, char *argv[])
       exit (1) ;
    }
 
+   // Pega os valores do if acima, e atualiza o contexto atual
+   // Utilizando o makecontext
    makecontext (&ContextPing, (void*)(*BodyPing), 1, "    Ping") ;
 
    getcontext (&ContextPong) ;
@@ -96,7 +103,8 @@ int main (int argc, char *argv[])
       perror ("Erro na criação da pilha: ") ;
       exit (1) ;
    }
-
+   
+   // ajusta alguns valores internos do contexto salvo em a.
    makecontext (&ContextPong, (void*)(*BodyPong), 1, "        Pong") ;
 
    swapcontext (&ContextMain, &ContextPing) ;
@@ -106,3 +114,12 @@ int main (int argc, char *argv[])
 
    exit (0) ;
 }
+
+/*
+
+1- Explique o objetivo e os parâmetros de cada uma das quatro funções acima.
+2- Explique o significado dos campos da estrutura ucontext_t que foram utilizados no código.
+3- Explique cada linha do código de contexts.c que chame uma dessas funções ou que manipule estruturas do tipo ucontext_t.
+4- Para visualizar melhor as trocas de contexto, desenhe o diagrama de tempo dessa execução.
+
+*/
