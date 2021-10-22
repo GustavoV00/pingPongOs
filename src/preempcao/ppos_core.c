@@ -2,6 +2,8 @@
 #include <stdio.h>
 #include <ucontext.h>
 #include <stdlib.h>
+#include <signal.h>
+#include <sys/time.h>
 #include "ppos_data.h"
 
 #define STACKSIZE 64*1024	/* tamanho de pilha das threads */
@@ -9,7 +11,10 @@
 static task_t *TarefaAtual, *UltimaTarefa, MainTarefa;
 static task_t TarefaDispatcher;
 static queue_t *FilaTarefas = NULL;
+static struct sigaction action;
+static struct itimerval timer;
 static int flag = 0;
+static int tick = 20;
 
 
 // Cria uma nova tarefa
@@ -26,7 +31,7 @@ int task_create (task_t *task, void (*start_routine)(void *),  void *arg){
         task->context.uc_link = 0;
 
     }
-//    printf("Criou a tarefa: %s\n", (char *) arg);
+
     makecontext (&(task->context), (void*)(*start_routine), 1, arg);
     task->id = flag;
     queue_append (&FilaTarefas, (queue_t *) task);
@@ -85,6 +90,13 @@ void task_yield () {
     return;
 }
 
+void tratamentoDeTicks(int sinal) {
+    int auxTick = tick;
+    if(flag > 0 && sinal == 14)
+        while(auxTick > 0) { auxTick--; }
+    task_yield();
+}
+
 void task_setprio (task_t *task, int prio) {
     task->prioEstatica = prio;
     task->prioDinamica = prio;
@@ -105,7 +117,7 @@ task_t* scheduler() {
     int tam = queue_size(FilaTarefas);
     // Verifica a tarefa com a menor prioridade
     for(int i = 0; i < tam; i++){
-        if(FilaAux->prioDinamica <= proxima->prioDinamica){
+        if(FilaAux->prioDinamica < proxima->prioDinamica){
             proxima = FilaAux;
         }
 
@@ -151,6 +163,26 @@ void ppos_init() {
         MainTarefa.id = flag;
         TarefaAtual = &MainTarefa;
         flag += 1;
+
+        action.sa_handler = tratamentoDeTicks;
+        sigemptyset (&action.sa_mask);
+        action.sa_flags = 0;
+        if (sigaction (SIGALRM, &action, 0) < 0) {
+            perror ("Erro em sigaction: ");
+            exit (1);
+        }
+        
+        // ajusta valores do temporizador
+        timer.it_value.tv_usec = 1000;      // primeiro disparo, em micro-segundos
+        timer.it_value.tv_sec  = 0;      // primeiro disparo, em segundos
+        timer.it_interval.tv_usec = 1000;   // disparos subsequentes, em micro-segundos
+        timer.it_interval.tv_sec  = 0;   // disparos subsequentes, em segundos
+        
+        // arma o temporizador ITIMER_REAL (vide man setitimer)
+        if (setitimer (ITIMER_REAL, &timer, 0) < 0) {
+            perror ("Erro em setitimer: ");
+            exit (1);
+        }
 
         #ifdef DEBUG
         printf ("Salva o contexto da tarefa main e cria a tarefa Dispatcher\n");

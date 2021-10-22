@@ -5,15 +5,15 @@
 
 #define STACKSIZE 64*1024	/* tamanho de pilha das threads */
 
-static task_t *TarefaAtual, *UltimaTarefa, MainTarefa;
+static task_t *TarefaAtual, *UltimaTarefa, TarefaMain;
 static int flag = 0;
 
 // Inicializa as estruturas internas do SO
 void ppos_init() {
     if(flag == 0) {
-        getcontext(&MainTarefa.context);
-        MainTarefa.id = flag;
-        TarefaAtual = &MainTarefa;
+        getcontext(&TarefaMain.context);
+        TarefaMain.id = flag;
+        TarefaAtual = &TarefaMain;
         flag += 1;
     }
     
@@ -34,9 +34,8 @@ int task_create (task_t *task, void (*start_routine)(void *),  void *arg){
         task->context.uc_stack.ss_size = STACKSIZE;
         task->context.uc_stack.ss_flags = 0;
         task->context.uc_link = 0;
-
     }
-//    printf("Criou a tarefa: %s\n", (char *) arg);
+
     makecontext (&(task->context), (void*)(*start_routine), 1, arg);
     task->id = flag;
     #ifdef DEBUG
@@ -55,7 +54,7 @@ int task_switch (task_t *task){
     printf ("task_switch: trocando contexto %d -> %d\n", UltimaTarefa->id, TarefaAtual->id);
     #endif
     swapcontext (&UltimaTarefa->context, &TarefaAtual->context);
-    return -1;
+    return task->id;
 }
 
 // Termina a tarefa corrente
@@ -63,7 +62,7 @@ void task_exit (int exit_code){
     #ifdef DEBUG
     printf ("task_exit: tarefa %d sendo encerrada\n", exit_code) ;
     #endif
-    task_switch(&MainTarefa);
+    task_switch(&TarefaMain);
     return;
 }
 
