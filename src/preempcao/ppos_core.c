@@ -14,8 +14,9 @@ static queue_t *FilaTarefas = NULL;
 static struct sigaction action;
 static struct itimerval timer;
 static int flag = 0;
-static int tick = 20;
-
+static int ticks = 0;
+static int quantum = 20;
+static int auxQuantum;
 
 // Cria uma nova tarefa
 int task_create (task_t *task, void (*start_routine)(void *),  void *arg){
@@ -34,6 +35,7 @@ int task_create (task_t *task, void (*start_routine)(void *),  void *arg){
 
     makecontext (&(task->context), (void*)(*start_routine), 1, arg);
     task->id = flag;
+    task->tarefaUsuario = 1;
     queue_append (&FilaTarefas, (queue_t *) task);
     #ifdef DEBUG
     printf ("task_create: criou tarefa %d\n", task->id) ;
@@ -60,7 +62,7 @@ void task_exit (int exit_code){
     #ifdef DEBUG
     printf ("task_exit: tarefa %d sendo encerrada\n", exit_code) ;
     #endif
-    if(queue_size(FilaTarefas) > 0)
+    if(queue_size(FilaTarefas) >= 0)
         task_switch(&TarefaDispatcher);
     else
         task_switch(&MainTarefa);
@@ -91,13 +93,19 @@ void task_yield () {
 }
 
 void tratamentoDeTicks(int sinal) {
-    int auxTick = tick;
-    if(flag > 0 && sinal == 14)
-        while(auxTick > 0) { auxTick--; }
-    task_yield();
+    ticks += 1;
+    if(sinal == 14 && TarefaAtual->tarefaUsuario == 1){
+        auxQuantum -= 1;
+        if(auxQuantum == 0)
+            task_yield();
+    }
 }
 
 void task_setprio (task_t *task, int prio) {
+//    if(!prio) {
+//        printf("test\n");
+//        prio = 0;
+//    }
     task->prioEstatica = prio;
     task->prioDinamica = prio;
 }
@@ -108,32 +116,31 @@ int task_getprio (task_t *task) {
     return task->prioEstatica;
 }
 
-// Indica qual vai ser a próxima tarefa. 
 task_t* scheduler() {
     task_t *proxima = NULL; // Proxima tarefa
     task_t *FilaAux = (task_t *) FilaTarefas; // FilaxAux é o que vai andar pela Fila
 
     proxima = FilaAux;
+    FilaAux = FilaAux->next;
     int tam = queue_size(FilaTarefas);
     // Verifica a tarefa com a menor prioridade
     for(int i = 0; i < tam; i++){
-        if(FilaAux->prioDinamica < proxima->prioDinamica){
+        if(FilaAux->prioDinamica <= proxima->prioDinamica){
             proxima = FilaAux;
         }
-
         FilaAux = FilaAux->next;
     }
 
-    // Faz a FilaAux apontar para o começo da fila novamente
-    FilaAux = (task_t *) FilaTarefas;
-    // Decrementa 1 da prioridade de todas as tarefas
-    for(int i = 0; i < tam; i++) {
+    FilaAux = (task_t *) FilaTarefas; // FilaxAux é o que vai andar pela Fila
+    for(int i = 0; i < tam; i++){
         FilaAux->prioDinamica -= 1;
+        if(FilaAux->prioDinamica < -20)
+            FilaAux->prioDinamica = -20;
         FilaAux = FilaAux->next;
     }
 
     task_setprio(proxima, proxima->prioEstatica);
-    proxima->prioDinamica -= 1; // Arrumar o output
+    proxima->prioDinamica -= 1;
     queue_remove(&FilaTarefas, (queue_t *) proxima);
     return proxima;
 }
@@ -146,6 +153,7 @@ void dispatcher () {
         task_t *proxima = scheduler();
 
         // Enquanto existir alguma proxima tarefa
+        auxQuantum = quantum;
         if(proxima != NULL) {
             FilaTarefas = queue_size(FilaTarefas) > 0 ? FilaTarefas : NULL;
             task_switch(proxima);
@@ -162,7 +170,12 @@ void ppos_init() {
         getcontext(&MainTarefa.context);
         MainTarefa.id = flag;
         TarefaAtual = &MainTarefa;
+        MainTarefa.tarefaUsuario = 1;
         flag += 1;
+
+        #ifdef DEBUG
+        printf ("Salva o contexto da tarefa main e cria a tarefa Dispatcher\n");
+        #endif
 
         action.sa_handler = tratamentoDeTicks;
         sigemptyset (&action.sa_mask);
@@ -184,10 +197,6 @@ void ppos_init() {
             exit (1);
         }
 
-        #ifdef DEBUG
-        printf ("Salva o contexto da tarefa main e cria a tarefa Dispatcher\n");
-        #endif
-
         task_create(&TarefaDispatcher, dispatcher, "dispatcher");
     } else {
         printf("Erro em iniciar o contexto da main\n");
@@ -197,3 +206,4 @@ void ppos_init() {
     setvbuf (stdout, 0, _IONBF, 0);
     return;
 }
+

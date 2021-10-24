@@ -2,6 +2,8 @@
 #include <stdio.h>
 #include <ucontext.h>
 #include <stdlib.h>
+#include <signal.h>
+#include <sys/time.h>
 #include "ppos_data.h"
 
 #define STACKSIZE 64*1024	/* tamanho de pilha das threads */
@@ -9,8 +11,16 @@
 static task_t *TarefaAtual, *UltimaTarefa, MainTarefa;
 static task_t TarefaDispatcher;
 static queue_t *FilaTarefas = NULL;
+static struct sigaction action;
+static struct itimerval timer;
 static int flag = 0;
+static int ticks = 0;
+static int quantum = 20;
+static int auxQuantum;
 
+unsigned int systime() {
+    return ticks;
+}
 
 // Cria uma nova tarefa
 int task_create (task_t *task, void (*start_routine)(void *),  void *arg){
@@ -26,9 +36,12 @@ int task_create (task_t *task, void (*start_routine)(void *),  void *arg){
         task->context.uc_link = 0;
 
     }
-//    printf("Criou a tarefa: %s\n", (char *) arg);
+
     makecontext (&(task->context), (void*)(*start_routine), 1, arg);
     task->id = flag;
+    task->tarefaUsuario = 1;
+    task->duracaoDaTarefa = 0;
+    task->tempoNoProcessador = 0;
     queue_append (&FilaTarefas, (queue_t *) task);
     #ifdef DEBUG
     printf ("task_create: criou tarefa %d\n", task->id) ;
@@ -46,20 +59,9 @@ int task_switch (task_t *task){
     #ifdef DEBUG
     printf ("task_switch: trocando contexto %d -> %d\n", UltimaTarefa->id, TarefaAtual->id);
     #endif
+    TarefaAtual->ativacoes += 1;
     swapcontext (&UltimaTarefa->context, &TarefaAtual->context);
     return task->id;
-}
-
-// Termina a tarefa corrente
-void task_exit (int exit_code){
-    #ifdef DEBUG
-    printf ("task_exit: tarefa %d sendo encerrada\n", exit_code) ;
-    #endif
-    if(queue_size(FilaTarefas) > 0)
-        task_switch(&TarefaDispatcher);
-    else
-        task_switch(&MainTarefa);
-    return;
 }
 
 // Informa o identificador da tarefa corrente
@@ -68,6 +70,20 @@ int task_id (){
     printf ("task_id: id da tarefa %d\n", TarefaAtual->id) ;
     #endif
     return TarefaAtual->id;
+}
+
+// Termina a tarefa corrente
+void task_exit (int exit_code){
+    TarefaAtual->duracaoDaTarefa = systime();
+    printf("Task %d exit: execution time %d ms, processor time %d ms, %d activations\n", task_id(), TarefaAtual->duracaoDaTarefa, TarefaAtual->tempoNoProcessador, TarefaAtual->ativacoes);
+    #ifdef DEBUG
+    printf ("task_exit: tarefa %d sendo encerrada\n", exit_code) ;
+    #endif
+    if(queue_size(FilaTarefas) >= 0)
+        task_switch(&TarefaDispatcher);
+    else
+        task_switch(&MainTarefa);
+    return;
 }
 
 // Indica se volta para a main ou se vai para o dispatcher que é o gerenciador de tarefas. 
@@ -85,6 +101,16 @@ void task_yield () {
     return;
 }
 
+void tratamentoDeTicks(int sinal) {
+    ticks += 1;
+    TarefaAtual->tempoNoProcessador += 1;
+    if(sinal == 14 && TarefaAtual->tarefaUsuario == 1){
+        auxQuantum -= 1;
+        if(auxQuantum == 0)
+            task_yield();
+    }
+}
+
 void task_setprio (task_t *task, int prio) {
 //    if(!prio) {
 //        printf("test\n");
@@ -100,7 +126,6 @@ int task_getprio (task_t *task) {
     return task->prioEstatica;
 }
 
-// Indica qual vai ser a próxima tarefa. 
 task_t* scheduler() {
     task_t *proxima = NULL; // Proxima tarefa
     task_t *FilaAux = (task_t *) FilaTarefas; // FilaxAux é o que vai andar pela Fila
@@ -109,7 +134,7 @@ task_t* scheduler() {
     FilaAux = FilaAux->next;
     int tam = queue_size(FilaTarefas);
     // Verifica a tarefa com a menor prioridade
-    for(int i = 1; i < tam; i++){
+    for(int i = 0; i < tam; i++){
         if(FilaAux->prioDinamica <= proxima->prioDinamica){
             proxima = FilaAux;
         }
@@ -138,6 +163,7 @@ void dispatcher () {
         task_t *proxima = scheduler();
 
         // Enquanto existir alguma proxima tarefa
+        auxQuantum = quantum;
         if(proxima != NULL) {
             FilaTarefas = queue_size(FilaTarefas) > 0 ? FilaTarefas : NULL;
             task_switch(proxima);
@@ -154,11 +180,32 @@ void ppos_init() {
         getcontext(&MainTarefa.context);
         MainTarefa.id = flag;
         TarefaAtual = &MainTarefa;
+        MainTarefa.tarefaUsuario = 1;
         flag += 1;
 
         #ifdef DEBUG
         printf ("Salva o contexto da tarefa main e cria a tarefa Dispatcher\n");
         #endif
+
+        action.sa_handler = tratamentoDeTicks;
+        sigemptyset (&action.sa_mask);
+        action.sa_flags = 0;
+        if (sigaction (SIGALRM, &action, 0) < 0) {
+            perror ("Erro em sigaction: ");
+            exit (1);
+        }
+        
+        // ajusta valores do temporizador
+        timer.it_value.tv_usec = 1000;      // primeiro disparo, em micro-segundos
+        timer.it_value.tv_sec  = 0;      // primeiro disparo, em segundos
+        timer.it_interval.tv_usec = 1000;   // disparos subsequentes, em micro-segundos
+        timer.it_interval.tv_sec  = 0;   // disparos subsequentes, em segundos
+        
+        // arma o temporizador ITIMER_REAL (vide man setitimer)
+        if (setitimer (ITIMER_REAL, &timer, 0) < 0) {
+            perror ("Erro em setitimer: ");
+            exit (1);
+        }
 
         task_create(&TarefaDispatcher, dispatcher, "dispatcher");
     } else {
@@ -169,3 +216,4 @@ void ppos_init() {
     setvbuf (stdout, 0, _IONBF, 0);
     return;
 }
+

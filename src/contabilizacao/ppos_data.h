@@ -18,8 +18,10 @@ typedef struct task_t
    ucontext_t context ;			// contexto armazenado da tarefa
    int prioEstatica;        // Prioridade Estática
    int prioDinamica;        // Prioridade Dinâmica 
-   int quantum;
    int tarefaUsuario;
+   int duracaoDaTarefa;
+   int ativacoes;
+   int tempoNoProcessador;
    // ... (outros campos serão adicionados mais tarde)
 } task_t ;
 
