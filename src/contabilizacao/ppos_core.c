@@ -16,7 +16,6 @@ static struct itimerval timer;
 static int flag = 0;
 static int ticks = 0;
 static int quantum = 20;
-static int auxQuantum;
 
 unsigned int systime() {
     return ticks;
@@ -101,21 +100,20 @@ void task_yield () {
     return;
 }
 
+// Realiza o tratamento de ticks
 void tratamentoDeTicks(int sinal) {
     ticks += 1;
     TarefaAtual->tempoNoProcessador += 1;
     if(sinal == 14 && TarefaAtual->tarefaUsuario == 1){
-        auxQuantum -= 1;
-        if(auxQuantum == 0)
-            task_yield();
+        quantum -= 1;
+        if(quantum == 0){ // Quando chega a zero, indica que seu tempo no processador acabou
+            quantum = 20;
+            task_yield();        
+        }
     }
 }
 
 void task_setprio (task_t *task, int prio) {
-//    if(!prio) {
-//        printf("test\n");
-//        prio = 0;
-//    }
     task->prioEstatica = prio;
     task->prioDinamica = prio;
 }
@@ -163,7 +161,6 @@ void dispatcher () {
         task_t *proxima = scheduler();
 
         // Enquanto existir alguma proxima tarefa
-        auxQuantum = quantum;
         if(proxima != NULL) {
             FilaTarefas = queue_size(FilaTarefas) > 0 ? FilaTarefas : NULL;
             task_switch(proxima);
@@ -179,9 +176,12 @@ void ppos_init() {
     if(flag == 0) {
         getcontext(&MainTarefa.context);
         MainTarefa.id = flag;
-        TarefaAtual = &MainTarefa;
         MainTarefa.tarefaUsuario = 1;
+        MainTarefa.duracaoDaTarefa = 0;
+        MainTarefa.tempoNoProcessador = 0;
+        TarefaAtual = &MainTarefa;
         flag += 1;
+
 
         #ifdef DEBUG
         printf ("Salva o contexto da tarefa main e cria a tarefa Dispatcher\n");
