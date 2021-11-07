@@ -22,6 +22,7 @@ typedef struct task_t
    int duracaoDaTarefa;     // Tempo de duração da tarefa
    int ativacoes;           // Indica quantas vezes essa tarefa foi ativada. (task_switch)
    int tempoNoProcessador;  // Tempo em que a tarefa teve no processador. 
+   int deveAcordar;
    int status;
    queue_t *tarefasSuspensas;
    // ... (outros campos serão adicionados mais tarde)

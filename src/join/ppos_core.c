@@ -18,6 +18,20 @@ static int ticks = 0;
 static int quantum = 20;
 static int taskYieldInit = 1;
 
+
+//print elementos da fila
+void print_fila(void* ptr)
+{
+   task_t *elem = ptr ;
+
+   if (!elem)
+      return ;
+
+   elem->prev ? printf ("%d", elem->prev->id) : printf ("*") ;
+   printf ("<%d>", elem->id) ;
+   elem->next ? printf ("%d", elem->next->id) : printf ("*") ;
+}
+
 unsigned int systime() {
     return ticks;
 }
@@ -42,6 +56,7 @@ int task_create (task_t *task, void (*start_routine)(void *),  void *arg){
     task->tempoNoProcessador = 0;
     task->tarefasSuspensas = NULL;
     task->tarefaUsuario = 1;
+    task->status = 0;
     if(task->id == 1)
         task->tarefaUsuario = 0;
 
@@ -90,24 +105,26 @@ void task_yield () {
     #endif
 
     // Condição para o código conseguir acabar. 
-    if(&TarefaDispatcher != TarefaAtual){
-//        printf("Inserindo na fila a tarefa: %d | task_yield\n", TarefaAtual->id);
-        if(taskYieldInit == 0)
-            queue_append((queue_t **) &FilaTarefas, (queue_t *) TarefaAtual);
-    }
-
-    taskYieldInit = 0;
+//    if(&TarefaDispatcher != TarefaAtual){
+////        printf("Inserindo na fila a tarefa: %d | task_yield\n", TarefaAtual->id);
+//        if(taskYieldInit == 0)
+//            queue_append((queue_t **) &FilaTarefas, (queue_t *) TarefaAtual);
+//    }
+//
+//    taskYieldInit = 0;
     task_switch(&TarefaDispatcher);
     return;
 }
 
 int task_join (task_t *task) {
     if(task != NULL){
-        printf("TarefaAtual: %d\n", TarefaAtual->id);
-        if(TarefaAtual->id != 0)
+        if(task->status == 0) {
+            queue_print("Fila de prioridades no sleep", (queue_t *) FilaTarefas, print_fila);
+
             queue_remove(&FilaTarefas, (queue_t *) TarefaAtual);
-        queue_append(&task->tarefasSuspensas, (queue_t *) TarefaAtual);
-        task_switch(&TarefaDispatcher);
+            queue_append(&task->tarefasSuspensas, (queue_t *) TarefaAtual);
+            task_switch(&TarefaDispatcher);
+        }
 
         return task->id;
     } else 
@@ -133,7 +150,12 @@ void task_exit (int exit_code){
         elem = FilaAux;
     }
 
-    task_switch(&TarefaDispatcher); 
+    if(TarefaAtual->tarefaUsuario == 1) {
+//        queue_print("Fila de suspensa antes remocao", (queue_t *) TarefaAtual, print_fila);
+        TarefaAtual->status = 1;
+        queue_remove(&FilaTarefas, (queue_t *) TarefaAtual);
+        task_switch(&TarefaDispatcher); 
+    }
     return;
 }
 
@@ -170,7 +192,7 @@ task_t* scheduler() {
     int tam = queue_size(FilaTarefas);
     // Verifica a tarefa com a menor prioridade
     for(int i = 0; i < tam; i++){
-        if(FilaAux->prioDinamica <= proxima->prioDinamica){
+        if(FilaAux->prioDinamica < proxima->prioDinamica){
             proxima = FilaAux;
         }
         FilaAux = FilaAux->next;
@@ -186,7 +208,7 @@ task_t* scheduler() {
 
     task_setprio(proxima, proxima->prioEstatica);
     proxima->prioDinamica -= 1;
-    queue_remove(&FilaTarefas, (queue_t *) proxima);
+//    queue_remove(&FilaTarefas, (queue_t *) proxima);
 //    printf("Remove tarefa: %d\n", proxima->id);
     return proxima;
 }
@@ -217,6 +239,7 @@ void ppos_init() {
         MainTarefa.duracaoDaTarefa = 0;
         MainTarefa.tempoNoProcessador = 0;
         MainTarefa.tarefasSuspensas = NULL;
+        MainTarefa.status = 0;
 
         TarefaAtual = &MainTarefa;
         queue_append (&FilaTarefas, (queue_t *) &MainTarefa);
