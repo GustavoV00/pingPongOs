@@ -22,7 +22,7 @@ static int ticks = 0;
 static int quantum = 20;
 
 
-// Declaração das funções
+// Protótipo das funções
 // -------------------------------------------------------
 unsigned int systime();
 int task_create (task_t *task, void (*start_routine)(void *),  void *arg);
@@ -41,18 +41,6 @@ void ppos_init();
 
 // -------------------------------------------------------
 
-//print elementos da fila
-void print_fila(void* ptr)
-{
-   task_t *elem = ptr ;
-
-   if (!elem)
-      return ;
-
-   elem->prev ? printf ("%d", elem->prev->id) : printf ("*") ;
-   printf ("<%d>", elem->id) ;
-   elem->next ? printf ("%d", elem->next->id) : printf ("*") ;
-}
 // Inicializa as estruturas internas do SO
 void ppos_init() {
     // Salva o contexto da main
@@ -171,14 +159,6 @@ void task_yield () {
     printf ("Quando a tarefa atual, for a main novamente, significa que chegou no fim.\n") ;
     #endif
 
-    // Condição para o código conseguir acabar. 
-//    if(&TarefaDispatcher != TarefaAtual){
-////        printf("Inserindo na fila a tarefa: %d | task_yield\n", TarefaAtual->id);
-//        if(taskYieldInit == 0)
-//            queue_append((queue_t **) &FilaTarefas, (queue_t *) TarefaAtual);
-//    }
-
-//    taskYieldInit = 0;
     task_switch(&TarefaDispatcher);
     return;
 }
@@ -191,15 +171,11 @@ void task_exit (int exit_code){
     printf ("task_exit: tarefa %d sendo encerrada\n", exit_code) ;
     #endif
 
-    // REFATORAR ISSO AQUI
     queue_t *FilaAux = TarefaAtual->tarefasSuspensas;
-    queue_t *elem = TarefaAtual->tarefasSuspensas;
-
     while(queue_size((queue_t *) TarefaAtual->tarefasSuspensas) > 0){
-        queue_remove((queue_t **) &TarefaAtual->tarefasSuspensas, elem);
-        queue_append((queue_t **) &FilaTarefas, elem);
+        queue_remove((queue_t **) &TarefaAtual->tarefasSuspensas, FilaAux);
+        queue_append((queue_t **) &FilaTarefas, FilaAux);
         FilaAux = FilaAux->next;
-        elem = FilaAux;
     }
         
     if(TarefaAtual->tarefaUsuario == 1){
@@ -235,16 +211,16 @@ task_t* scheduler() {
 
     task_setprio(proxima, proxima->prioEstatica);
     proxima->prioDinamica -= 1;
-//    queue_remove(&FilaTarefas, (queue_t *) proxima);
-//    printf("Remove tarefa: %d\n", proxima->id);
     return proxima;
 }
 
 // Quando a tarefa volta para o dispatcher, não começa no começo do while novamente
 // Continua de onde a tarefa parou!!!
 void dispatcher () {
+    // As tarefas adormecidas e as tarefas que estão nas filas precisãm ser terminadas. 
     while(queue_size(FilaTarefas) > 0 || queue_size(FilaAdormecidas) > 0) {
     
+        // Caso exista tarefa nas filas de prontas
         if(queue_size(FilaTarefas) > 0){
             task_t *proxima = scheduler();
 
@@ -253,21 +229,19 @@ void dispatcher () {
             }
         }
 
+
+        // Caso exista tarefas adormecidas
         if(queue_size(FilaAdormecidas) > 0){
             task_t *aux = (task_t *) FilaAdormecidas;
-            task_t *elem = NULL;
             task_t *removido = NULL;
 
             int tamFila = queue_size((queue_t *) aux);
             for(int i = 0; i < tamFila; i++){
-                elem = aux;
-                if(systime() >= elem->deveAcordar && elem != removido) {
+                if(systime() >= aux->deveAcordar && aux != removido) {
 //                    printf("Elemento que deve acordr: %d\n", elem->id);
-//                    queue_print("Fila das tarefas dormindo", (queue_t *) FilaAdormecidas, print_fila);
-                    queue_remove(&FilaAdormecidas, (queue_t *) elem);
-                    queue_append(&FilaTarefas, (queue_t *) elem);
-//                    queue_print("Fila das tarefas dormindo", (queue_t *) FilaAdormecidas, print_fila);
-                    removido = elem;
+                    queue_remove(&FilaAdormecidas, (queue_t *) aux);
+                    queue_append(&FilaTarefas, (queue_t *) aux);
+                    removido = aux;
                 }
                 aux = aux->next;    
             }
@@ -294,8 +268,8 @@ unsigned int systime() {
 // Realiza o tratamento de ticks
 void task_ticks(int sinal) {
     ticks += 1;
+    TarefaAtual->tempoNoProcessador += 1;
     if(sinal == 14 && TarefaAtual->tarefaUsuario == 1){
-        TarefaAtual->tempoNoProcessador += 1;
         quantum -= 1;
         if(quantum == 0){ // Quando chega a zero, indica que seu tempo no processador acabou
             quantum = 20;
@@ -307,8 +281,8 @@ void task_ticks(int sinal) {
 int task_join (task_t *task) {
     if(task->status == PRONTA){
         if(task != NULL){
-//            queue_print("Fila de prioridades no join", (queue_t *) FilaTarefas, print_fila);
 
+            // Suspensão das tarefas
             queue_remove(&FilaTarefas, (queue_t *) TarefaAtual);
             queue_append(&task->tarefasSuspensas, (queue_t *) TarefaAtual);
             task_switch(&TarefaDispatcher);
@@ -320,9 +294,8 @@ int task_join (task_t *task) {
 }
 
 void task_sleep(int t) {
+    // Momento em que a tarefa deve acordar em ms
     TarefaAtual->deveAcordar = t + systime();
-
-//    queue_print("Fila de prioridades no sleep", (queue_t *) FilaTarefas, print_fila);
     queue_remove(&FilaTarefas, (queue_t *) TarefaAtual);
     queue_append(&FilaAdormecidas, (queue_t *) TarefaAtual);
     task_switch(&TarefaDispatcher);
