@@ -183,7 +183,6 @@ void task_exit (int exit_code){
         queue_remove(&FilaTarefas, (queue_t *) TarefaAtual);
         task_switch(&TarefaDispatcher); 
     }
-    return;
 }
 
 task_t* scheduler() {

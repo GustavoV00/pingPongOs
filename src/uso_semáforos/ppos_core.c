@@ -21,6 +21,7 @@ static int flag = 0;
 static int ticks = 0;
 static int quantum = 20;
 static int lock = 0;
+static int block;
 
 
 // -------------------------------------------------------
@@ -69,6 +70,7 @@ void ppos_init() {
         MainTarefa.semBlock = 1;
 
         TarefaAtual = &MainTarefa;
+        block = 1;
         queue_append (&FilaTarefas, (queue_t *) &MainTarefa);
 //        printf("Inserindo na fila a tarefa: %d | ppos_init\n", MainTarefa.id);
         flag += 1;
@@ -175,16 +177,13 @@ void task_yield () {
     printf ("Quando a tarefa atual, for a main novamente, significa que chegou no fim.\n") ;
     #endif
 
-    if(TarefaAtual->tarefaUsuario == 0 && task_id() != 1)
-        TarefaAtual->tarefaUsuario = 1;
-
     task_switch(&TarefaDispatcher);
     return;
 }
 
 // Termina a tarefa corrente
 void task_exit (int exit_code){
-    TarefaAtual->semBlock = 0;
+    block = 0;
     TarefaAtual->duracaoDaTarefa = systime();
     printf("Task %d exit: execution time %d ms, processor time %d ms, %d activations\n", task_id(), TarefaAtual->duracaoDaTarefa, TarefaAtual->tempoNoProcessador, TarefaAtual->ativacoes);
     #ifdef DEBUG
@@ -198,7 +197,7 @@ void task_exit (int exit_code){
         FilaAux = FilaAux->next;
     }
         
-    TarefaAtual->semBlock = 1;
+    block = 1;
     if(TarefaAtual->tarefaUsuario == 1){
         TarefaAtual->status = TERMINADA;
         queue_remove(&FilaTarefas, (queue_t *) TarefaAtual);
@@ -250,6 +249,7 @@ void dispatcher () {
         }
 
         // Caso exista tarefas adormecidas
+        block = 0;
         if(FilaAdormecidas != NULL){
             task_t *aux = (task_t *) FilaAdormecidas;
             task_t *removido = NULL;
@@ -263,6 +263,7 @@ void dispatcher () {
                 }
             }
         }
+        block = 1;
     }
     task_exit(0);
 }
@@ -286,7 +287,7 @@ unsigned int systime() {
 void task_ticks(int sinal) {
     ticks += 1;
     TarefaAtual->tempoNoProcessador += 1;
-    if(sinal == 14 && TarefaAtual->tarefaUsuario == 1 && TarefaAtual->semBlock == 1){
+    if(sinal == 14 && TarefaAtual->tarefaUsuario == 1 && block == 1){
         quantum -= 1;
         if(quantum == 0 ){ // Quando chega a zero, indica que seu tempo no processador acabou
             quantum = 20;
@@ -298,11 +299,11 @@ void task_ticks(int sinal) {
 int task_join (task_t *task) {
     if(task->status == PRONTA){
         if(task != NULL){
-            TarefaAtual->semBlock = 0;
+            block = 0;
             // Suspensão das tarefas
             queue_remove(&FilaTarefas, (queue_t *) TarefaAtual);
             queue_append(&task->tarefasSuspensas, (queue_t *) TarefaAtual);
-            TarefaAtual->semBlock = 1;
+            block = 1;
             task_switch(&TarefaDispatcher);
         }
 
@@ -313,11 +314,11 @@ int task_join (task_t *task) {
 
 void task_sleep(int t) {
     // Momento em que a tarefa deve acordar em ms
-    TarefaAtual->semBlock = 0;
+    block = 0;
     TarefaAtual->deveAcordar = t + systime();
     queue_remove(&FilaTarefas, (queue_t *) TarefaAtual);
     queue_append(&FilaAdormecidas, (queue_t *) TarefaAtual);
-    TarefaAtual->semBlock = 1;
+    block = 1;
     task_switch(&TarefaDispatcher);
 }
 
@@ -352,12 +353,12 @@ int sem_down(semaphore_t *s) {
     if(s != NULL){
         s->contador -= 1;
         if(s->contador < 0) {
-            TarefaAtual->semBlock = 0;
+            block = 0;
             queue_remove(&FilaTarefas, (queue_t *) TarefaAtual);
             queue_append((queue_t **) &s->fila, (queue_t *) TarefaAtual);
             leave_cs(&lock);
             task_yield();
-            TarefaAtual->semBlock = 1;
+            block = 1;
             return 0;
         }
     }else
@@ -371,7 +372,7 @@ int sem_up(semaphore_t *s) {
     enter_cs(&lock);
     if(s != NULL){
         s->contador += 1;
-        TarefaAtual->semBlock = 0;
+        block = 0;
         if(queue_size((queue_t *) s->fila) > 0 && s->contador <= 0) {
             queue_t *elem = (queue_t *) s->fila;
             queue_remove((queue_t **) &s->fila, elem);
@@ -379,7 +380,7 @@ int sem_up(semaphore_t *s) {
             leave_cs(&lock);
             return 0;
         }
-        TarefaAtual->semBlock = 1;
+        block = 1;
     } else
         return -1;
     leave_cs(&lock);
@@ -391,18 +392,21 @@ int sem_destroy(semaphore_t *s) {
     if(s != NULL){
         int tamFilaSem = queue_size((queue_t *) s->fila);
         task_t *elem = NULL;
+        block = 0;
         for(int i = 0; i < tamFilaSem; i++) {
             elem = s->fila;
             queue_remove((queue_t **) &s->fila, (queue_t *) elem);
             queue_append(&FilaTarefas, (queue_t *) elem);
         }
         leave_cs(&lock);
+        block = 1;
         return 0;
     }else
         return -1;
 
     s = NULL;
     leave_cs(&lock);
+    block = 1;
     return 0;
 }
 
