@@ -24,7 +24,6 @@ typedef struct task_t
    int tempoNoProcessador;  // Tempo em que a tarefa teve no processador. 
    int deveAcordar;
    int status;
-   int semBlock;
    queue_t *tarefasSuspensas;
    // ... (outros campos serão adicionados mais tarde)
 } task_t ;
@@ -53,13 +52,12 @@ typedef struct
 typedef struct
 {
   struct task_t *fila;
+  void *buffer;
+  int ultimo;
+  int primeiro;
   int max_msg;
   int msg_size;
-
-  int countProd;
-  int countCons;
-
-  void *buffer; // Fila circular
+  int quantidade;
 
   semaphore_t s_buffer;
   semaphore_t s_vaga;

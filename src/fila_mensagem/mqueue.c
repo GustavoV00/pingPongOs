@@ -101,21 +101,21 @@ int main (int argc, char *argv[])
    mqueue_create (&queueRaizes,  5, sizeof(double)) ;
 
 //   // cria as threads
-//   task_create (&somador, somaBody, NULL) ;
-//   task_create (&cons[0], consBody, NULL) ;
-//   task_create (&cons[1], consBody, NULL) ;
-//   task_create (&prod[0], prodBody, NULL) ;
-//   task_create (&prod[1], prodBody, NULL) ;
-//   task_create (&prod[2], prodBody, NULL) ;
-//
-//   // aguarda o somador encerrar
-//   task_join (&somador) ;
-//
-//   // destroi as filas de mensagens
-//   printf ("main: destroi queueValores\n") ;
-//   mqueue_destroy (&queueValores) ;
-//   printf ("main: destroi queueRaizes\n") ;
-//   mqueue_destroy (&queueRaizes) ;
+   task_create (&somador, somaBody, NULL) ;
+   task_create (&cons[0], consBody, NULL) ;
+   task_create (&cons[1], consBody, NULL) ;
+   task_create (&prod[0], prodBody, NULL) ;
+   task_create (&prod[1], prodBody, NULL) ;
+   task_create (&prod[2], prodBody, NULL) ;
+
+   // aguarda o somador encerrar
+   task_join (&somador) ;
+
+   // destroi as filas de mensagens
+   printf ("main: destroi queueValores\n") ;
+   mqueue_destroy (&queueValores) ;
+   printf ("main: destroi queueRaizes\n") ;
+   mqueue_destroy (&queueRaizes) ;
 
    // encerra a thread main
    printf ("main: fim\n") ;
