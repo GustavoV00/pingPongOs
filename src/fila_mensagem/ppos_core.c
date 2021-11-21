@@ -26,6 +26,7 @@ static int ticks = 0;
 static int quantum = 20;
 static int lock = 0;
 static int block;
+static int tarefasUsuario = 0;
 
 
 // -------------------------------------------------------
@@ -48,18 +49,6 @@ void ppos_init();
 
 // -------------------------------------------------------
 
-//print elementos da fila
-void print_fila(void* ptr)
-{
-   task_t *elem = ptr ;
-
-   if (!elem)
-      return ;
-
-   elem->prev ? printf ("%d", elem->prev->id) : printf ("*") ;
-   printf ("<%d>", elem->id) ;
-   elem->next ? printf ("%d", elem->next->id) : printf ("*") ;
-}
 // Inicializa as estruturas internas do SO
 void ppos_init() {
     // Salva o contexto da main
@@ -71,6 +60,7 @@ void ppos_init() {
         MainTarefa.tempoNoProcessador = 0;
         MainTarefa.tarefasSuspensas = NULL;
         MainTarefa.status = PRONTA;
+        tarefasUsuario += 1;
 
         TarefaAtual = &MainTarefa;
         block = 1;
@@ -137,6 +127,7 @@ int task_create (task_t *task, void (*start_routine)(void *),  void *arg){
 
     if(task->tarefaUsuario == 1){
 //        printf("Inserindo na fila a tarefa: %d | task_create\n", task->id);
+        tarefasUsuario += 1;
         queue_append (&FilaTarefas, (queue_t *) task);
     }
 
@@ -179,8 +170,12 @@ void task_yield () {
     printf ("Quando a tarefa atual, for a main novamente, significa que chegou no fim.\n") ;
     #endif
 
+    if(TarefaAtual->tarefaUsuario == 0 && task_id() != 1){
+        TarefaAtual->tarefaUsuario = 1;
+        queue_append((queue_t**)&FilaTarefas, (queue_t*)TarefaAtual);
+    }
+
     task_switch(&TarefaDispatcher);
-    return;
 }
 
 // Termina a tarefa corrente
@@ -191,22 +186,18 @@ void task_exit (int exit_code){
     printf ("task_exit: tarefa %d sendo encerrada\n", exit_code) ;
     #endif
 
-    queue_t *FilaAux = TarefaAtual->tarefasSuspensas;
+    queue_t *FilaAux;
     while(queue_size((queue_t *) TarefaAtual->tarefasSuspensas) > 0){
+        FilaAux = TarefaAtual->tarefasSuspensas;
         queue_remove((queue_t **) &TarefaAtual->tarefasSuspensas, FilaAux);
         queue_append((queue_t **) &FilaTarefas, FilaAux);
-        FilaAux = FilaAux->next;
     }
         
-
-    queue_print("task_exit | down", (queue_t *) test->fila, print_fila);
-//    printf("Contador: %d\n", test->contador);
-    queue_print("TarefaAtual | exit", (queue_t *) FilaTarefas, print_fila);
-    queue_print("Adormecidas", (queue_t *) FilaAdormecidas, print_fila);
-    if(TarefaAtual->tarefaUsuario == 1){
+    if(task_id() != 1){
         TarefaAtual->status = TERMINADA;
+        tarefasUsuario -= 1;
         queue_remove(&FilaTarefas, (queue_t *) TarefaAtual);
-        task_yield(); 
+        task_yield();
     }
 }
 
@@ -242,7 +233,8 @@ task_t* scheduler() {
 // Continua de onde a tarefa parou!!!
 void dispatcher () {
     // As tarefas adormecidas e as tarefas que estão nas filas precisãm ser terminadas. 
-    while(queue_size(FilaTarefas) > 0 || queue_size(FilaAdormecidas) > 0) {
+//    while(tarefasUsuario > 0) {
+    while (queue_size(FilaTarefas) > 0 || queue_size(FilaAdormecidas) > 0){
     
         // Caso exista tarefa nas filas de prontas
         if(queue_size(FilaTarefas) > 0){
@@ -261,11 +253,11 @@ void dispatcher () {
 
             int tamFila = queue_size((queue_t *) aux);
             for(int i = 0; i < tamFila; i++){
-                if(systime() >= aux->deveAcordar) {
+                if(systime() >= aux->deveAcordar && aux != removido) {
                     queue_remove(&FilaAdormecidas, (queue_t *) aux);
                     queue_append(&FilaTarefas, (queue_t *) aux);
+                    removido = aux;
                 }
-                aux = (task_t *) FilaAdormecidas;
             }
         }
         block = 1;
@@ -354,8 +346,10 @@ int sem_create(semaphore_t *s, int value){
 
 int sem_down(semaphore_t *s) {
     enter_cs(&lock);
-    if(!s) return -1;
-
+    if(!s){
+        leave_cs(&lock);
+        return -1;
+    }
     s->contador -= 1;
     test = s;
     if(s->contador < 0) {
@@ -363,7 +357,6 @@ int sem_down(semaphore_t *s) {
         block = 0;
         queue_remove(&FilaTarefas, (queue_t *) elem);
         queue_append((queue_t **) &s->fila, (queue_t *) elem);
-        queue_print("sem_down | s", (queue_t *) s->fila, print_fila);
         leave_cs(&lock);
         task_yield();
         block = 1;
@@ -375,7 +368,10 @@ int sem_down(semaphore_t *s) {
 
 int sem_up(semaphore_t *s) {
     enter_cs(&lock);
-    if(!s) return -1;
+    if(!s){
+        leave_cs(&lock);
+        return -1;
+    }
 
     s->contador += 1;
     test2 = s;
@@ -394,15 +390,16 @@ int sem_up(semaphore_t *s) {
 
 int sem_destroy(semaphore_t *s) {
     enter_cs(&lock);
-    if(!s) return -1;
-    int tamFilaSem = queue_size((queue_t *) s->fila);
+    if(!s){
+        leave_cs(&lock);
+        return -1;
+    }
+
     task_t *elem = NULL;
-    for(int i = 0; i < tamFilaSem; i++) {
+    while(queue_size((queue_t *) s->fila) > 0) {
         elem = s->fila;
-        queue_print("sem_destroy", (queue_t *) s->fila, print_fila);
         queue_remove((queue_t **) &s->fila, (queue_t *) elem);
         queue_append(&FilaTarefas, (queue_t *) elem);
-        queue_print("sem_destro | atual", (queue_t *) FilaTarefas, print_fila);
     }
     leave_cs(&lock);
     return 0;
@@ -416,78 +413,71 @@ int sem_destroy(semaphore_t *s) {
 // int size é em bytes
 // Cria uma fila de mensagens
 int mqueue_create(mqueue_t *queue, int max, int size) {
-    if(queue) {
-        queue->max_msg = max;
-        queue->msg_size = size;
-        queue->ultimo = -1;
-        queue->primeiro = 0;
-        queue->quantidade = 0;
+    if(!queue) return -1;
 
-        // Aloca considerando o tamanho total da fila e o tamanho do tipo
-        queue->buffer = malloc(queue->max_msg * queue->msg_size);
-        if(!queue->buffer) return -1;
+    queue->max_msg = max;
+    queue->msg_size = size;
+    queue->ultimo = -1;
+    queue->primeiro = 0;
+    queue->quantidade = 0;
+    queue->status = 1;
 
-        sem_create(&queue->s_buffer, 1);
-        sem_create(&queue->s_vaga, queue->max_msg);
-        sem_create(&queue->s_item, 0);
+    // Aloca considerando o tamanho total da fila e o tamanho do tipo
+    queue->buffer = malloc(queue->max_msg * queue->msg_size);
+    if(!queue->buffer) return -1;
 
-        return 0;
-    }
-    return -1;
+    sem_create(&queue->s_buffer, 1);
+    sem_create(&queue->s_vaga, queue->max_msg);
+    sem_create(&queue->s_item, 0);
+
+    return 0;
 }
 
 // Envia uma mensagem
 int mqueue_send(mqueue_t *queue, void *msg) {
-    if(queue && msg){
-        sem_down(&queue->s_vaga);
-        sem_down(&queue->s_buffer);
+    if(!queue || queue->status == 0) return -1;
+    sem_down(&queue->s_vaga);
+    sem_down(&queue->s_buffer);
 
-        // insere item no buffer
-        if(queue->ultimo == queue->max_msg-1) queue->ultimo = -1;
-        queue->ultimo += 1;
-        memcpy(queue->buffer + (queue->msg_size*queue->ultimo), msg, queue->msg_size);
-        queue->quantidade += 1;
+    // insere item no buffer
+    if(queue->ultimo == queue->max_msg-1) queue->ultimo = -1;
+    queue->ultimo += 1;
+    memcpy(queue->buffer + (queue->msg_size*queue->ultimo), msg, queue->msg_size);
+    queue->quantidade += 1;
 
-//        queue_print("mqueue_send", (queue_t *) FilaTarefas, print_fila);
-        sem_up(&queue->s_buffer);
-        sem_up(&queue->s_item);
-        return 0;
-    }
-    return -1;
+    sem_up(&queue->s_buffer);
+    sem_up(&queue->s_item);
+    return 0;
 }
 
 // Recebe uma mensagem
 int mqueue_recv(mqueue_t *queue, void *msg) {
-    if(queue && msg) {
-        sem_down(&queue->s_item);
-        sem_down(&queue->s_buffer);
+    if(!queue || queue->status == 0) return -1;
+    sem_down(&queue->s_item);
+    sem_down(&queue->s_buffer);
 
-        // Retira item do buffer
-        // item = buffer[queue->countCons];
-        memcpy(msg, queue->buffer+(queue->msg_size*queue->primeiro), queue->msg_size);
-        queue->primeiro += 1;
-        queue->quantidade -= 1;
-        if(queue->primeiro == queue->max_msg) queue->primeiro = 0;
+    // Retira item do buffer
+    // item = buffer[queue->countCons];
+    memcpy(msg, queue->buffer+(queue->msg_size*queue->primeiro), queue->msg_size);
+    queue->primeiro += 1;
+    queue->quantidade -= 1;
+    if(queue->primeiro == queue->max_msg) queue->primeiro = 0;
 
-        sem_up(&queue->s_buffer);
-        sem_up(&queue->s_vaga);
-        return 0;
-    }
-    return -1;
+    sem_up(&queue->s_buffer);
+    sem_up(&queue->s_vaga);
+    return 0;
 }
 
 // Destroy o message queue
 int mqueue_destroy(mqueue_t *queue) {
-    if(queue) {
-        printf("TO AQUI no destroy\n");
-        sem_destroy(&queue->s_vaga);
-        sem_destroy(&queue->s_item);
-        sem_destroy(&queue->s_buffer);
-        free(queue->buffer);
-        queue = NULL;
-        return 0;
-    }
-    return -1;
+    if(!queue || queue->status == 0) return -1;
+    sem_destroy(&queue->s_vaga);
+    sem_destroy(&queue->s_item);
+    sem_destroy(&queue->s_buffer);
+    free(queue->buffer);
+    queue->status = 0;
+    queue = NULL;
+    return 0;
 }
 
 // Pega o total de mensagens

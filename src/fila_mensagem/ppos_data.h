@@ -51,13 +51,13 @@ typedef struct
 // estrutura que define uma fila de mensagens
 typedef struct
 {
-  struct task_t *fila;
   void *buffer;
   int ultimo;
   int primeiro;
   int max_msg;
   int msg_size;
   int quantidade;
+  int status;
 
   semaphore_t s_buffer;
   semaphore_t s_vaga;
