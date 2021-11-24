@@ -68,19 +68,19 @@ typedef struct
   // preencher quando necessário
 } mqueue_t ;
 
-static task_t *TarefaAtual, *UltimaTarefa, MainTarefa;
-static task_t TarefaDispatcher;
-static queue_t *FilaTarefas;
-static queue_t *FilaAdormecidas;
-static semaphore_t *test;
-static semaphore_t *test2;
-static struct sigaction action;
-static struct itimerval timer;
-static int flag;
-static int ticks;
-static int quantum;
-static int lock;
-static int block;
-static int tarefasUsuario;
+task_t *TarefaAtual, *UltimaTarefa, MainTarefa;
+task_t TarefaDispatcher;
+queue_t *FilaTarefas;
+queue_t *FilaAdormecidas;
+semaphore_t *test;
+semaphore_t *test2;
+struct sigaction action;
+struct itimerval timer;
+int flag;
+int ticks;
+int quantum;
+int lock;
+int block;
+int tarefasUsuario;
 
 #endif

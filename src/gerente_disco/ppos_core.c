@@ -13,20 +13,12 @@
 #define PRONTA 0
 #define TERMINADA 1
 
-static task_t *TarefaAtual, *UltimaTarefa, MainTarefa;
-static task_t TarefaDispatcher;
-static queue_t *FilaTarefas = NULL;
-static queue_t *FilaAdormecidas = NULL;
-static semaphore_t *test = NULL;
-static semaphore_t *test2 = NULL;
-static struct sigaction action;
-static struct itimerval timer;
-static int flag = 0;
-static int ticks = 0;
-static int quantum = 20;
-static int lock = 0;
-static int block;
-static int tarefasUsuario = 0;
+int flag = 0;
+int ticks = 0;
+int quantum = 20;
+int lock = 0;
+int block;
+int tarefasUsuario = 0;
 
 
 // -------------------------------------------------------

@@ -16,12 +16,13 @@
 typedef struct
 {
   queue_t *filaDisk;
-  task_t *tarefaGerente;
+  task_t tarefaGerente;
+  int comando;
   int sinal;
   int status;
   int block;
   char *buffer;
-  semaphore_t *diskSemaph;
+  semaphore_t diskSemaph;
   // completar com os campos necessarios
 } disk_t ;
 

@@ -55,29 +55,29 @@ int main (int argc, char *argv[])
       printf ("%c", buffer[j]) ;
     printf ("]\n") ;
   }
-
-  // inicia gerador de números aleatórios
-  srandom (systime()) ;
-
-  // lê e imprime todos os blocos do disco, um a um
-  for (i=0; i<numblocks; i++)
-  {
-
-    // preenche o buffer com um caractere aleatório
-    c = 32 + random () % 48 ;
-    for (j = 0; j < blocksize; j++)
-      buffer[j] = c ;
-
-    // escreve o buffer no bloco i do disco
-    printf ("%5d ms: escrevendo bloco %d com caracteres \"%c\"\n",
-            systime(), i, c) ;
-    if (disk_block_write (i, buffer))
-      printf ("Erro!\n") ;
-  }
-
-  // encerra a thread main
-  printf ("%5d ms: main fim\n", systime()) ;
-  task_exit (0) ;
+//
+//  // inicia gerador de números aleatórios
+//  srandom (systime()) ;
+//
+//  // lê e imprime todos os blocos do disco, um a um
+//  for (i=0; i<numblocks; i++)
+//  {
+//
+//    // preenche o buffer com um caractere aleatório
+//    c = 32 + random () % 48 ;
+//    for (j = 0; j < blocksize; j++)
+//      buffer[j] = c ;
+//
+//    // escreve o buffer no bloco i do disco
+//    printf ("%5d ms: escrevendo bloco %d com caracteres \"%c\"\n",
+//            systime(), i, c) ;
+//    if (disk_block_write (i, buffer))
+//      printf ("Erro!\n") ;
+//  }
+//
+//  // encerra a thread main
+//  printf ("%5d ms: main fim\n", systime()) ;
+//  task_exit (0) ;
 
   exit(0) ;
 }
