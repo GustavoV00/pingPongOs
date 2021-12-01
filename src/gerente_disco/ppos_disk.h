@@ -7,21 +7,31 @@
 #ifndef __DISK_MGR__
 #define __DISK_MGR__
 
+#include "ppos_data.h"
+
+#define ATIVO 1
+#define DESATIVADO 0
+#define SUSPENSO 2
+
 // estruturas de dados e rotinas de inicializacao e acesso
 // a um dispositivo de entrada/saida orientado a blocos,
 // tipicamente um disco rigido.
 
-// estrutura que representa um disco no sistema operacional
-#include "ppos_data.h"
-typedef struct
-{
-  queue_t *filaDisk;
+typedef struct filaDisk {
+  struct filaDisk *next, *prev;
   task_t tarefaGerente;
   int comando;
+  int block;
+  int *buffer;
+
+} filaDisk_t;
+
+// estrutura que representa um disco no sistema operacional
+typedef struct
+{
+  struct filaDisk_t *filaDisk;
   int sinal;
   int status;
-  int block;
-  char *buffer;
   semaphore_t diskSemaph;
   // completar com os campos necessarios
 } disk_t ;
