@@ -240,7 +240,7 @@ task_t *scheduler() {
 // Quando a tarefa volta para o dispatcher, não começa no começo do while no
 // amente Continua de onde a tarefa parou!!!
 void dispatcher() {
-  // As tarefas adormecidas e as tarefas que estão nas filas precisãm ser t
+  // As tarefas adormecidas e as tarefas que estão nas filas precisão ser t
   // rminadas.
   //    while(tarefasUsuario > 0) {
   while (queue_size(FilaTarefas) > 0 || queue_size(FilaAdormecidas) > 0) {
